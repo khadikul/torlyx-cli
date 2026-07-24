@@ -103,6 +103,24 @@ def test_no_audit_flag_skips_dependency_audit(monkeypatch):
     assert "TORLYX SECURITY SCAN" in result.output
 
 
+def test_export_md_writes_ai_ready_report(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    result = runner.invoke(app, ["scan", str(VULN_APP), "--no-audit", "--export", "md"])
+    assert result.exit_code == 0
+    report_file = tmp_path / "torlyx-report.md"
+    assert report_file.exists()
+    content = report_file.read_text(encoding="utf-8")
+    assert "Paste this report into your AI assistant" in content
+    assert "TLX-S003" in content
+
+
+def test_export_rejects_unknown_formats(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    result = runner.invoke(app, ["scan", str(VULN_APP), "--export", "pdf"])
+    assert result.exit_code == 2
+    assert not (tmp_path / "torlyx-report.md").exists()
+
+
 def test_scan_of_missing_path_exits_2():
     result = runner.invoke(app, ["scan", "definitely/not/a/real/path"])
     assert result.exit_code == 2
