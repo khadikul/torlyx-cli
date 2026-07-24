@@ -195,7 +195,7 @@ _STRIPE = re.compile(r"\bsk_live_[0-9a-zA-Z]{10,}\b")
 _OPENAI = re.compile(r"\bsk-(?!ant-)(?:proj-)?[A-Za-z0-9_\-]{20,}\b")
 _ANTHROPIC = re.compile(r"\bsk-ant-[A-Za-z0-9_\-]{20,}\b")
 _GITHUB = re.compile(r"\b(?:ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9]{36,}\b|\bgithub_pat_[A-Za-z0-9_]{22,}\b")
-_GOOGLE = re.compile(r"\bAIza[0-9A-Za-z_\-]{35}\b")
+_GOOGLE = re.compile(r"\bAIza[0-9A-Za-z_\-]{32,40}\b")
 _JWT_SHAPE = re.compile(r"\beyJ[A-Za-z0-9_\-]{8,}\.[A-Za-z0-9_\-]{8,}\.[A-Za-z0-9_\-]{5,}\b")
 _DB_URL = re.compile(
     r"\b(?:postgres(?:ql)?|mysql|mariadb|mongodb(?:\+srv)?|redis|amqps?|mssql)"
