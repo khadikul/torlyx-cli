@@ -43,8 +43,8 @@ audit = ["pip-audit>=2.7"]
 dev = ["pytest>=8.0", "pip-audit>=2.7"]
 
 [project.urls]
-Homepage = "https://github.com/khadikul/torlyx"
-Issues = "https://github.com/khadikul/torlyx/issues"
+Homepage = "https://github.com/khadikul/torlyx-cli"
+Issues = "https://github.com/khadikul/torlyx-cli/issues"
 
 [project.scripts]
 torlyx = "torlyx.cli:app"
