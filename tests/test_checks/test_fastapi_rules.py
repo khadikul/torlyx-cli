@@ -186,6 +186,38 @@ def test_docs_rule_needs_production_signals(make_ctx):
     assert rules_fired(findings) == {"TLX-F006"}
 
 
+def test_custom_rate_limit_dependency_silences_f008(make_ctx):
+    ctx = make_ctx(
+        {
+            "api.py": (
+                "from fastapi import APIRouter, Depends\n"
+                "from app.security import rate_limit\n"
+                "router = APIRouter()\n"
+                "@router.post('/login', dependencies=[Depends(rate_limit(30, 60))])\n"
+                "def login(email: str, password: str):\n"
+                "    return {}\n"
+            )
+        }
+    )
+    assert fastapi_rules.run(ctx) == []
+
+
+def test_limiter_decorator_silences_f008(make_ctx):
+    ctx = make_ctx(
+        {
+            "api.py": (
+                "from fastapi import APIRouter\n"
+                "router = APIRouter()\n"
+                "@router.post('/login')\n"
+                "@limiter.limit('5/minute')\n"
+                "def login(email: str, password: str):\n"
+                "    return {}\n"
+            )
+        }
+    )
+    assert fastapi_rules.run(ctx) == []
+
+
 def test_rate_limit_import_silences_f008(make_ctx):
     ctx = make_ctx(
         {
