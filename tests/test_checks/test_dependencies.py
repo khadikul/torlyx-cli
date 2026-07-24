@@ -46,6 +46,8 @@ REQUIREMENTS = "fastapi==0.68.0\nuvicorn==0.15.0\nrequests==2.19.1\n"
 
 
 def test_cves_map_to_findings(make_ctx, monkeypatch):
+    # _audit_command is mocked too, so the test passes without pip-audit installed
+    monkeypatch.setattr(dependencies, "_audit_command", lambda: ["pip-audit"])
     monkeypatch.setattr(dependencies, "_run_pip_audit", lambda _: CANNED_AUDIT)
     ctx = make_ctx({"requirements.txt": REQUIREMENTS})
     findings = dependencies.run(ctx)
@@ -70,10 +72,23 @@ def test_missing_pip_audit_adds_note_and_skips(make_ctx, monkeypatch):
 
 
 def test_audit_failure_adds_note_and_skips(make_ctx, monkeypatch):
+    monkeypatch.setattr(dependencies, "_audit_command", lambda: ["pip-audit"])
     monkeypatch.setattr(dependencies, "_run_pip_audit", lambda _: None)
     ctx = make_ctx({"requirements.txt": REQUIREMENTS})
     assert dependencies.run(ctx) == []
     assert any("audit skipped" in note for note in ctx.notes)
+
+
+def test_no_audit_skips_without_touching_pip_audit(make_ctx, monkeypatch):
+    def _boom(*_args):
+        raise AssertionError("pip-audit must not be invoked with --no-audit")
+
+    monkeypatch.setattr(dependencies, "_audit_command", _boom)
+    monkeypatch.setattr(dependencies, "_run_pip_audit", _boom)
+    ctx = make_ctx({"requirements.txt": REQUIREMENTS})
+    ctx.audit = False
+    assert dependencies.run(ctx) == []
+    assert any("--no-audit" in note for note in ctx.notes)
 
 
 def test_no_requirements_file_is_silently_skipped(make_ctx):
@@ -88,6 +103,20 @@ def test_severity_mapping():
     assert dependencies._severity_from_cvss({"severity": "2.1"}) is Severity.INFO
     assert dependencies._severity_from_cvss({}) is Severity.WARNING
     assert dependencies._severity_from_cvss({"cvss": 7}) is Severity.CRITICAL
+
+
+def test_severity_labels_are_mapped():
+    assert dependencies._severity_from_cvss({"severity": "CRITICAL"}) is Severity.CRITICAL
+    assert dependencies._severity_from_cvss({"severity": "High"}) is Severity.CRITICAL
+    assert dependencies._severity_from_cvss({"severity": "moderate"}) is Severity.WARNING
+    assert dependencies._severity_from_cvss({"severity": "low"}) is Severity.INFO
+
+
+def test_cvss_vector_strings_are_not_scraped_for_digits():
+    # A 9.8-critical vuln whose severity field is a vector string must NOT
+    # become INFO because "3.1" (the CVSS *version*) was read as the score.
+    vector = {"severity": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"}
+    assert dependencies._severity_from_cvss(vector) is Severity.WARNING
 
 
 def test_requirement_line_lookup():

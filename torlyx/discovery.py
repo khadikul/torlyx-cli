@@ -77,7 +77,7 @@ def _wanted(path: Path) -> bool:
     return path.suffix.lower() in TEXT_EXTENSIONS
 
 
-def _excluded(rel_posix: str, patterns: list[str]) -> bool:
+def is_excluded(rel_posix: str, patterns: list[str]) -> bool:
     """Match a relative posix path against user-supplied glob excludes."""
     parts = rel_posix.split("/")
     for pat in patterns:
@@ -111,13 +111,13 @@ def discover_files(root: Path, excludes: list[str] | None = None) -> list[Path]:
             if entry.is_dir():
                 if entry.name in SKIP_DIRS or entry.name.endswith(".egg-info"):
                     continue
-                if excludes and _excluded(rel, excludes):
+                if excludes and is_excluded(rel, excludes):
                     continue
                 stack.append(entry)
             elif entry.is_file():
                 if not _wanted(entry):
                     continue
-                if excludes and _excluded(rel, excludes):
+                if excludes and is_excluded(rel, excludes):
                     continue
                 try:
                     if entry.stat().st_size > MAX_FILE_BYTES:

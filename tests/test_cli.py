@@ -21,8 +21,9 @@ runner = CliRunner()
 
 @pytest.fixture(autouse=True)
 def offline(monkeypatch):
-    """No git, no network in CLI tests."""
+    """No git, no network, no pip-audit requirement in CLI tests."""
     monkeypatch.setattr("torlyx.discovery.git_tracked_files", lambda root: set())
+    monkeypatch.setattr(dependencies, "_audit_command", lambda: ["pip-audit"])
     monkeypatch.setattr(dependencies, "_run_pip_audit", lambda _: {"dependencies": []})
 
 
@@ -89,6 +90,17 @@ def test_exclude_flag_is_repeatable():
     assert "app/config.py" in all_files
     assert "app/config.py" not in kept_files
     assert "app/utils.py" not in kept_files
+
+
+def test_no_audit_flag_skips_dependency_audit(monkeypatch):
+    def _boom(*_args):
+        raise AssertionError("pip-audit must not run with --no-audit")
+
+    monkeypatch.setattr(dependencies, "_audit_command", _boom)
+    monkeypatch.setattr(dependencies, "_run_pip_audit", _boom)
+    result = runner.invoke(app, ["scan", str(VULN_APP), "--no-audit"])
+    assert result.exit_code == 0
+    assert "TORLYX SECURITY SCAN" in result.output
 
 
 def test_scan_of_missing_path_exits_2():
