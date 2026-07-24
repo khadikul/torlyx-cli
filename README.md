@@ -13,7 +13,6 @@ entirely on your machine.
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue)](https://pypi.org/project/torlyx/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-<!-- TODO: animated demo -->
 ![Torlyx CLI demo](docs/demo.gif)
 
 </div>
