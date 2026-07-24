@@ -97,9 +97,12 @@ def test_exclude_patterns_also_filter_git_tracked_findings():
     assert not any(f.file.startswith("certs/") for f in trimmed.findings)
 
 
-def test_syntax_errors_never_crash_the_scan(tmp_path):
+def test_syntax_errors_never_crash_and_are_never_silent(tmp_path):
     (tmp_path / "broken.py").write_text("def broken(:\n", encoding="utf-8")
     (tmp_path / "fine.py").write_text("x = eval(input())\n", encoding="utf-8")
-    result = scanner.scan(tmp_path, verbose=True)
+    result = scanner.scan(tmp_path)  # note must appear WITHOUT --verbose
     assert any(f.rule_id == "TLX-C002" for f in result.findings)
-    assert any("broken.py" in note for note in result.notes)
+    skip_notes = [n for n in result.notes if "broken.py" in n]
+    assert skip_notes, "unparseable files must be reported, not silently skipped"
+    assert "findings may be incomplete" in skip_notes[0]
+    assert "newer Python syntax" in skip_notes[0]

@@ -8,6 +8,7 @@ and returns a list of :class:`~torlyx.models.Finding`.
 from __future__ import annotations
 
 import ast
+import sys
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -79,8 +80,14 @@ class ScanContext:
                 try:
                     self._ast_cache[path] = ast.parse(text, filename=str(path))
                 except (SyntaxError, ValueError):
-                    if self.verbose:
-                        self.notes.append(f"Skipped {self.rel(path)} (syntax error)")
+                    # Never silent: a skipped file means AST rules can't see it,
+                    # which can flip results (e.g. missed Depends aliases).
+                    running = f"{sys.version_info.major}.{sys.version_info.minor}"
+                    self.notes.append(
+                        f"Skipped {self.rel(path)} (couldn't parse — possibly "
+                        f"newer Python syntax than your Python {running}; "
+                        "findings may be incomplete)"
+                    )
                     self._ast_cache[path] = None
         return self._ast_cache[path]
 

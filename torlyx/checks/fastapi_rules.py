@@ -80,7 +80,8 @@ _STATE_CHANGING = frozenset({"post", "put", "patch", "delete"})
 #: Paths that are unauthenticated by design — exempt from TLX-F001.
 _AUTH_EXEMPT_PATH = re.compile(
     r"(?i)(login|logout|signin|sign-in|signup|sign-up|register|token|refresh"
-    r"|forgot|reset|verify|confirm|webhook|callback|oauth|health|ping|contact|subscribe)"
+    r"|forgot|reset|recover|verify|confirm|webhook|callback|oauth|health|ping"
+    r"|contact|subscribe)"
 )
 
 _LOGIN_PATH = re.compile(r"(?i)(login|signin|sign-in|token|/auth)")
@@ -95,6 +96,9 @@ _RATE_LIMIT_NAME = re.compile(r"(?i)(rate_?limit|throttl|limiter)")
 _SENSITIVE_FIELDS = frozenset(
     {"password", "hashed_password", "password_hash", "secret", "secret_key", "token"}
 )
+
+#: ast.TypeAlias exists on Python 3.12+ only (PEP 695 ``type X = …``).
+_TYPE_ALIAS = getattr(ast, "TypeAlias", None)
 
 
 @dataclass
@@ -126,6 +130,9 @@ class _Route:
     has_auth: bool
     has_rate_limit: bool = False
     response_refs: list[str] = field(default_factory=list)
+    auth_ref_names: set[str] = field(default_factory=set)
+    """Names referenced in parameter annotations/defaults — matched against
+    project-wide Depends aliases (``CurrentUser = Annotated[User, Depends(…)]``)."""
 
 
 @dataclass
@@ -150,6 +157,9 @@ class _Analysis:
     #: names mentioned in include_router(..., dependencies=[...]) first args,
     #: e.g. {"users", "router"} for include_router(users.router, dependencies=[...])
     include_with_deps: set[str] = field(default_factory=set)
+    #: project-wide aliases whose value contains Depends(...), e.g.
+    #: ``CurrentUser = Annotated[User, Depends(get_current_user)]``
+    depends_aliases: set[str] = field(default_factory=set)
 
 
 def _call_name(node: ast.expr) -> str:
@@ -261,7 +271,14 @@ def _analyze_file(tree: ast.Module, rel: str, analysis: _Analysis) -> None:
             elif node.module:
                 analysis.imports.add(node.module.split(".")[0])
 
-        elif isinstance(node, ast.Assign) and isinstance(node.value, ast.Call):
+        elif isinstance(node, ast.Assign):
+            # CurrentUser = Annotated[User, Depends(...)] / dep = Depends(...)
+            if _annotation_has_depends(node.value):
+                analysis.depends_aliases.update(
+                    t.id for t in node.targets if isinstance(t, ast.Name)
+                )
+            if not isinstance(node.value, ast.Call):
+                continue
             ctor = _call_name(node.value.func).split(".")[-1]
             for target in node.targets:
                 if not isinstance(target, ast.Name):
@@ -289,6 +306,16 @@ def _analyze_file(tree: ast.Module, rel: str, analysis: _Analysis) -> None:
                             ),
                         )
                     )
+
+        elif isinstance(node, ast.AnnAssign) and node.value is not None:
+            # CurrentUser: TypeAlias = Annotated[User, Depends(...)]
+            if _annotation_has_depends(node.value) and isinstance(node.target, ast.Name):
+                analysis.depends_aliases.add(node.target.id)
+
+        elif _TYPE_ALIAS is not None and isinstance(node, _TYPE_ALIAS):
+            # type CurrentUser = Annotated[User, Depends(...)]  (PEP 695)
+            if _annotation_has_depends(node.value) and isinstance(node.name, ast.Name):
+                analysis.depends_aliases.add(node.name.id)
 
         elif isinstance(node, ast.Call):
             name = _call_name(node.func)
@@ -332,11 +359,28 @@ def _collect_model(node: ast.ClassDef, rel: str, analysis: _Analysis) -> None:
     analysis.model_lines[node.name] = (rel, node.lineno)
 
 
+def _ref_names(node: ast.expr) -> set[str]:
+    """Every plain or attribute name referenced inside an expression."""
+    names: set[str] = set()
+    for child in ast.walk(node):
+        if isinstance(child, ast.Name):
+            names.add(child.id)
+        elif isinstance(child, ast.Attribute):
+            names.add(child.attr)
+    return names
+
+
 def _collect_routes(
     fn: ast.FunctionDef | ast.AsyncFunctionDef, rel: str, analysis: _Analysis
 ) -> None:
     defaults = [d for d in (*fn.args.defaults, *fn.args.kw_defaults) if d is not None]
     has_rate_limit = _mentions_rate_limit(*fn.decorator_list, *defaults)
+    auth_ref_names: set[str] = set()
+    for arg in (*fn.args.args, *fn.args.kwonlyargs, *fn.args.posonlyargs):
+        if arg.annotation is not None:
+            auth_ref_names |= _ref_names(arg.annotation)
+    for default in defaults:
+        auth_ref_names |= _ref_names(default)
     for decorator in fn.decorator_list:
         if not isinstance(decorator, ast.Call) or not isinstance(
             decorator.func, ast.Attribute
@@ -366,12 +410,16 @@ def _collect_routes(
                 has_auth=has_auth,
                 has_rate_limit=has_rate_limit,
                 response_refs=response_refs,
+                auth_ref_names=auth_ref_names,
             )
         )
 
 
 def _route_is_protected(route: _Route, analysis: _Analysis) -> bool:
     if route.has_auth:
+        return True
+    # user: CurrentUser — where CurrentUser = Annotated[User, Depends(...)]
+    if route.auth_ref_names & analysis.depends_aliases:
         return True
     owner_last = route.owner.split(".")[-1]
     local = [r for r in analysis.routers if r.var == owner_last and r.file == route.file]

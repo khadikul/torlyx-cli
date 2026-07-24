@@ -126,6 +126,81 @@ def test_include_router_dependencies_protect_other_file_routes(make_ctx):
     assert fastapi_rules.run(ctx) == []
 
 
+def test_annotated_alias_from_another_file_protects_route(make_ctx):
+    """The official FastAPI template pattern: CurrentUser = Annotated[User, Depends(...)]."""
+    ctx = make_ctx(
+        {
+            "deps.py": (
+                "from typing import Annotated\n"
+                "from fastapi import Depends\n"
+                "def get_current_user():\n"
+                "    return {}\n"
+                "CurrentUser = Annotated[dict, Depends(get_current_user)]\n"
+            ),
+            "api.py": (
+                "from fastapi import APIRouter\n"
+                "from deps import CurrentUser\n"
+                "router = APIRouter()\n"
+                "@router.delete('/items/{i}')\n"
+                "def remove(i: int, user: CurrentUser):\n"
+                "    return i\n"
+                "@router.get('/admin/panel')\n"
+                "def panel(user: CurrentUser):\n"
+                "    return {}\n"
+            ),
+        }
+    )
+    assert fastapi_rules.run(ctx) == []
+
+
+def test_pep695_type_alias_protects_route(make_ctx):
+    ctx = make_ctx(
+        {
+            "api.py": (
+                "from typing import Annotated\n"
+                "from fastapi import APIRouter, Depends\n"
+                "router = APIRouter()\n"
+                "type CurrentUser = Annotated[dict, Depends(lambda: 1)]\n"
+                "@router.post('/items')\n"
+                "def create(user: CurrentUser):\n"
+                "    return {}\n"
+            )
+        }
+    )
+    assert fastapi_rules.run(ctx) == []
+
+
+def test_bare_depends_alias_as_default_protects_route(make_ctx):
+    ctx = make_ctx(
+        {
+            "api.py": (
+                "from fastapi import APIRouter, Depends\n"
+                "router = APIRouter()\n"
+                "require_user = Depends(lambda: 1)\n"
+                "@router.delete('/items/{i}')\n"
+                "def remove(i: int, user=require_user):\n"
+                "    return i\n"
+            )
+        }
+    )
+    assert fastapi_rules.run(ctx) == []
+
+
+def test_password_recovery_routes_are_exempt_from_f001(make_ctx):
+    ctx = make_ctx(
+        {
+            "api.py": (
+                "from fastapi import APIRouter\n"
+                "router = APIRouter()\n"
+                "@router.post('/password-recovery/{email}')\n"
+                "def recover_password(email: str):\n"
+                "    return {}\n"
+            )
+        }
+    )
+    assert not any(f.rule_id == "TLX-F001" for f in fastapi_rules.run(ctx))
+
+
 def test_login_routes_are_exempt_from_f001(make_ctx):
     ctx = make_ctx(
         {
