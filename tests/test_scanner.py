@@ -85,6 +85,18 @@ def test_exclude_patterns_drop_files():
     assert len(trimmed.findings) < len(full.findings)
 
 
+def test_exclude_patterns_also_filter_git_tracked_findings():
+    """S011/S012/I003 read `git ls-files`; --exclude must silence them too."""
+    full = scanner.scan(VULN_APP)
+    assert {"TLX-I003", "TLX-S011"} <= {f.rule_id for f in full.findings}
+
+    trimmed = scanner.scan(VULN_APP, excludes=["dist", ".env", "certs"])
+    fired = {f.rule_id for f in trimmed.findings}
+    assert "TLX-I003" not in fired  # dist/bundle.js.map (tracked-only)
+    assert "TLX-S011" not in fired  # .env (tracked-only)
+    assert not any(f.file.startswith("certs/") for f in trimmed.findings)
+
+
 def test_syntax_errors_never_crash_the_scan(tmp_path):
     (tmp_path / "broken.py").write_text("def broken(:\n", encoding="utf-8")
     (tmp_path / "fine.py").write_text("x = eval(input())\n", encoding="utf-8")

@@ -32,6 +32,8 @@ class ScanContext:
     files: list[Path]
     git_tracked: set[str] = field(default_factory=set)
     verbose: bool = False
+    audit: bool = True
+    """When False, the (network-touching) dependency audit is skipped."""
     notes: list[str] = field(default_factory=list)
     _text_cache: dict[Path, str | None] = field(default_factory=dict, repr=False)
     _ast_cache: dict[Path, ast.Module | None] = field(default_factory=dict, repr=False)
@@ -98,24 +100,34 @@ def build_context(
     root: Path,
     excludes: list[str] | None = None,
     verbose: bool = False,
+    audit: bool = True,
 ) -> ScanContext:
-    """Discover files and git state for *root* and assemble a ScanContext."""
+    """Discover files and git state for *root* and assemble a ScanContext.
+
+    ``--exclude`` patterns apply to git-tracked paths too, so rules that read
+    ``git ls-files`` (S011/S012/I003) honor them just like file-based rules.
+    """
     files = discovery.discover_files(root, excludes)
     tracked = discovery.git_tracked_files(root)
-    return ScanContext(root=root, files=files, git_tracked=tracked, verbose=verbose)
+    if excludes:
+        tracked = {t for t in tracked if not discovery.is_excluded(t, excludes)}
+    return ScanContext(
+        root=root, files=files, git_tracked=tracked, verbose=verbose, audit=audit
+    )
 
 
 def scan(
     path: str | Path,
     excludes: list[str] | None = None,
     verbose: bool = False,
+    audit: bool = True,
 ) -> ScanResult:
     """Run every registered check against *path* and return a ScanResult."""
     from torlyx import checks  # imported late so the registry is fully populated
 
     root = Path(path).resolve()
     started = time.perf_counter()
-    context = build_context(root, excludes=excludes, verbose=verbose)
+    context = build_context(root, excludes=excludes, verbose=verbose, audit=audit)
 
     findings: list[Finding] = []
     for check in checks.all_checks():

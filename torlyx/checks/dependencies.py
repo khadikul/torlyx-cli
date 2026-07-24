@@ -71,16 +71,34 @@ def _run_pip_audit(requirements: Path) -> dict[str, Any] | list[Any] | None:
         return None
 
 
+_SEVERITY_LABELS = {
+    "critical": Severity.CRITICAL,
+    "high": Severity.CRITICAL,
+    "moderate": Severity.WARNING,
+    "medium": Severity.WARNING,
+    "low": Severity.INFO,
+}
+
+
 def _severity_from_cvss(record: dict[str, Any]) -> Severity:
-    """Map a CVSS score to a Severity; unknown scores default to WARNING."""
+    """Map a CVSS score to a Severity; anything unparseable defaults to WARNING.
+
+    Only bare numeric scores (``"9.8"``) and severity labels (``"HIGH"``) are
+    trusted. Vector strings like ``CVSS:3.1/AV:N/...`` carry no base score, so
+    they fall through to the WARNING default — never scraped for digits, which
+    would misread the ``3.1`` version as a score.
+    """
     score: float | None = None
     raw = record.get("severity") or record.get("cvss")
     if isinstance(raw, (int, float)):
         score = float(raw)
     elif isinstance(raw, str):
-        match = re.search(r"\d+(\.\d+)?", raw)
-        if match:
-            score = float(match.group(0))
+        text = raw.strip()
+        label = _SEVERITY_LABELS.get(text.lower())
+        if label is not None:
+            return label
+        if re.fullmatch(r"\d+(\.\d+)?", text):
+            score = float(text)
     if score is None:
         return Severity.WARNING
     if score >= 7:
@@ -106,6 +124,10 @@ def run(context: "ScanContext") -> list[Finding]:
         None,
     )
     if requirements is None:
+        return []
+
+    if not context.audit:
+        context.notes.append("Dependency audit skipped (--no-audit)")
         return []
 
     if _audit_command() is None:

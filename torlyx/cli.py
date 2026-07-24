@@ -64,13 +64,20 @@ def scan(
     exclude: list[str] = typer.Option(
         [], "--exclude", help="Glob pattern to exclude (repeatable)."
     ),
+    no_audit: bool = typer.Option(
+        False,
+        "--no-audit",
+        help="Skip the dependency CVE audit — the only check that uses the network.",
+    ),
     verbose: bool = typer.Option(
         False, "--verbose", "-v", help="Show skipped files and extra notes."
     ),
 ) -> None:
     """Scan a project for security issues. Zero config, runs locally."""
     try:
-        result = scanner.scan(path, excludes=list(exclude), verbose=verbose)
+        result = scanner.scan(
+            path, excludes=list(exclude), verbose=verbose, audit=not no_audit
+        )
     except Exception as exc:  # scan error → exit 2, never a traceback
         _err_console.print(f"[red]Scan failed:[/red] {exc}")
         raise typer.Exit(code=2)
