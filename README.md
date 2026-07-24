@@ -1,10 +1,10 @@
 <div align="center">
 
-# Torlyx
+# Torlyx CLI
 
 **Scan your vibe-coded app before you ship it.**
 
-Torlyx is a zero-configuration security scanner for AI-generated web
+Torlyx CLI is a zero-configuration security scanner for AI-generated web
 applications. It detects hardcoded secrets, unprotected endpoints, SQL
 injection, permissive CORS, and vulnerable dependencies — in seconds,
 entirely on your machine.
@@ -14,7 +14,7 @@ entirely on your machine.
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 <!-- TODO: animated demo -->
-![Torlyx scan demo](docs/demo.gif)
+![Torlyx CLI demo](docs/demo.gif)
 
 </div>
 
@@ -98,7 +98,7 @@ plain-English explanation of the risk and a concrete fix:
 
 ## Rules
 
-Torlyx v0.1 ships 31 rules across five categories.
+Torlyx CLI v0.1 ships 31 rules across five categories.
 
 ### Secrets
 
