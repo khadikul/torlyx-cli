@@ -89,6 +89,9 @@ _RATE_LIMIT_LIBS = frozenset(
     {"slowapi", "limits", "fastapi_limiter", "starlette_limiter", "ratelimit", "throttled"}
 )
 
+#: Hand-rolled limiters count too: Depends(rate_limit(...)), @limiter.limit(...)
+_RATE_LIMIT_NAME = re.compile(r"(?i)(rate_?limit|throttl|limiter)")
+
 _SENSITIVE_FIELDS = frozenset(
     {"password", "hashed_password", "password_hash", "secret", "secret_key", "token"}
 )
@@ -109,6 +112,7 @@ class _Router:
     var: str
     file: str
     has_dependencies: bool = False
+    has_rate_limit: bool = False
 
 
 @dataclass
@@ -120,6 +124,7 @@ class _Route:
     owner: str
     func_name: str
     has_auth: bool
+    has_rate_limit: bool = False
     response_refs: list[str] = field(default_factory=list)
 
 
@@ -195,6 +200,24 @@ def _annotation_has_depends(annotation: ast.expr | None) -> bool:
     return any(_is_depends(n) for n in ast.walk(annotation) if isinstance(n, ast.expr))
 
 
+def _mentions_rate_limit(*nodes: ast.AST | None) -> bool:
+    """True when any node references a limiter by name (call, attr, or bare)."""
+    for node in nodes:
+        if node is None:
+            continue
+        for child in ast.walk(node):
+            name = ""
+            if isinstance(child, ast.Call):
+                name = _call_name(child.func)
+            elif isinstance(child, ast.Attribute):
+                name = child.attr
+            elif isinstance(child, ast.Name):
+                name = child.id
+            if name and _RATE_LIMIT_NAME.search(name):
+                return True
+    return False
+
+
 def _signature_has_auth(fn: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
     defaults = list(fn.args.defaults) + [d for d in fn.args.kw_defaults if d is not None]
     if any(_is_depends(d) for d in defaults):
@@ -261,6 +284,9 @@ def _analyze_file(tree: ast.Module, rel: str, analysis: _Analysis) -> None:
                             var=target.id,
                             file=rel,
                             has_dependencies=_non_empty(_kwarg(node.value, "dependencies")),
+                            has_rate_limit=_mentions_rate_limit(
+                                _kwarg(node.value, "dependencies")
+                            ),
                         )
                     )
 
@@ -309,6 +335,8 @@ def _collect_model(node: ast.ClassDef, rel: str, analysis: _Analysis) -> None:
 def _collect_routes(
     fn: ast.FunctionDef | ast.AsyncFunctionDef, rel: str, analysis: _Analysis
 ) -> None:
+    defaults = [d for d in (*fn.args.defaults, *fn.args.kw_defaults) if d is not None]
+    has_rate_limit = _mentions_rate_limit(*fn.decorator_list, *defaults)
     for decorator in fn.decorator_list:
         if not isinstance(decorator, ast.Call) or not isinstance(
             decorator.func, ast.Attribute
@@ -336,6 +364,7 @@ def _collect_routes(
                 owner=owner,
                 func_name=fn.name,
                 has_auth=has_auth,
+                has_rate_limit=has_rate_limit,
                 response_refs=response_refs,
             )
         )
@@ -552,13 +581,24 @@ def _check_response_models(analysis: _Analysis) -> list[Finding]:
     return findings
 
 
+def _route_rate_limited(route: _Route, analysis: _Analysis) -> bool:
+    """Rate-limited at route level or via its router's dependencies."""
+    if route.has_rate_limit:
+        return True
+    owner_last = route.owner.split(".")[-1]
+    local = [r for r in analysis.routers if r.var == owner_last and r.file == route.file]
+    routers = local or [r for r in analysis.routers if r.var == owner_last]
+    return any(r.has_rate_limit for r in routers)
+
+
 def _check_rate_limiting(analysis: _Analysis) -> list[Finding]:
     if analysis.imports & _RATE_LIMIT_LIBS:
         return []
     login_routes = [
         r
         for r in analysis.routes
-        if _LOGIN_PATH.search(r.path) or "login" in r.func_name.lower()
+        if (_LOGIN_PATH.search(r.path) or "login" in r.func_name.lower())
+        and not _route_rate_limited(r, analysis)
     ]
     if not login_routes:
         return []
