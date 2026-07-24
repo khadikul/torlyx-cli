@@ -1,13 +1,13 @@
 <div align="center">
 
-# ⚡ Torlyx
+# Torlyx
 
-### Scan your vibe-coded app before you ship it.
+**Scan your vibe-coded app before you ship it.**
 
-Built an app with Cursor, Claude Code, Bolt, Lovable or v0? It probably works.
-It's probably also leaking API keys, missing auth on half its endpoints, and
-wide open to SQL injection. **Torlyx finds that in seconds — no config, no
-signup, no cloud.**
+Torlyx is a zero-configuration security scanner for AI-generated web
+applications. It detects hardcoded secrets, unprotected endpoints, SQL
+injection, permissive CORS, and vulnerable dependencies — in seconds,
+entirely on your machine.
 
 [![PyPI](https://img.shields.io/pypi/v/torlyx)](https://pypi.org/project/torlyx/)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue)](https://pypi.org/project/torlyx/)
@@ -18,19 +18,28 @@ signup, no cloud.**
 
 </div>
 
----
-
-## Quick start
+## Installation
 
 ```bash
 pip install torlyx
-cd my-app/
+```
+
+To enable the dependency vulnerability audit, install with the `audit` extra:
+
+```bash
+pip install 'torlyx[audit]'
+```
+
+## Usage
+
+```bash
+cd my-app
 torlyx scan .
 ```
 
-That's it. No config file, no API key, no network calls (except the optional
-dependency audit). A full scan of an average project takes well under 10 seconds,
-and every finding comes with a plain-English explanation and a concrete fix:
+No configuration file, no account, no API key. Analysis runs locally — the
+only optional network call is the dependency audit. Every finding includes a
+plain-English explanation of the risk and a concrete fix:
 
 ```
   ⚡ TORLYX SECURITY SCAN
@@ -39,7 +48,7 @@ and every finding comes with a plain-English explanation and a concrete fix:
   🔴 CRITICAL  TLX-S003 · Stripe live key exposed
      app/config.py:12
      → Anyone who sees this code can charge cards on your Stripe account.
-     Fix: STRIPE_KEY = os.getenv("STRIPE_KEY")  # move value to .env
+     Fix: STRIPE_KEY = os.getenv("STRIPE_KEY")
 
   🔴 CRITICAL  TLX-F001 · Unprotected DELETE endpoint
      app/routes/users.py:34 → DELETE /users/{id}
@@ -51,98 +60,118 @@ and every finding comes with a plain-English explanation and a concrete fix:
   2 critical · 1 warning · 28 checks passed
 ```
 
-## Why Torlyx?
-
-- **Zero config.** `torlyx scan .` is the entire manual.
-- **Instant.** Pure-Python AST analysis, no heavyweight tool orchestration.
-- **Framework-aware.** v0.1 understands FastAPI deeply: router-level
-  dependencies, `Annotated[..., Depends(...)]`, `include_router` auth — so it
-  flags real holes, not false positives.
-- **Written for humans.** Every finding explains *why it's dangerous* in plain
-  English and shows the fix as real code. No CWE jargon.
-- **Local.** Your code never leaves your machine.
-
 ## Commands
 
-```bash
-torlyx scan [PATH]              # scan a project (defaults to .)
-  --json                        # machine-readable output
-  --fail-on critical|warning|any  # exit 1 at/above threshold (for CI)
-  --exclude PATTERN             # glob excludes, repeatable
-  --verbose                     # show skipped files
-torlyx rules                    # list every rule
-torlyx version
-```
+| Command | Description |
+|---|---|
+| `torlyx scan [PATH]` | Scan a project. `PATH` defaults to the current directory. |
+| `torlyx rules` | List every rule with its severity and description. |
+| `torlyx version` | Print the installed version. |
 
-Exit codes: `0` clean or below threshold · `1` threshold met (with `--fail-on`) · `2` scan error.
+### Scan options
 
-## The rules
+| Option | Description |
+|---|---|
+| `--json` | Emit machine-readable JSON (findings, score, metadata) to stdout. |
+| `--fail-on <critical\|warning\|any>` | Exit with code 1 when findings at or above the threshold exist. Intended for CI. |
+| `--exclude <pattern>` | Exclude files matching a glob pattern. Repeatable. |
+| `--verbose` | Report files skipped due to syntax errors. |
+
+### Exit codes
+
+| Code | Meaning |
+|---|---|
+| `0` | Scan completed; below the `--fail-on` threshold (or no threshold set). |
+| `1` | Findings at or above the `--fail-on` threshold. |
+| `2` | The scan itself failed. |
+
+## Design principles
+
+- **Zero configuration.** A single command with sensible defaults.
+- **Fast.** Pure-Python AST analysis; a typical project scans in seconds.
+- **Framework-aware.** Understands FastAPI auth in all its forms — router-level
+  dependencies, `Annotated[..., Depends(...)]`, and `include_router`
+  dependencies — so it reports real gaps rather than false positives.
+- **Readable.** Findings are written for developers, not security auditors.
+  No jargon; every finding ships with a fix.
+- **Private.** Code never leaves the machine.
+
+## Rules
+
+Torlyx v0.1 ships 31 rules across five categories.
 
 ### Secrets
 
-| ID | Finds | Severity |
+| ID | Detects | Severity |
 |---|---|---|
-| TLX-S001 | High-entropy secret assigned to a key/token/password variable | 🔴 critical |
-| TLX-S002 | AWS access or secret key | 🔴 critical |
-| TLX-S003 | Stripe live key (`sk_live_…`) | 🔴 critical |
-| TLX-S004 | OpenAI API key | 🔴 critical |
-| TLX-S005 | Anthropic API key | 🔴 critical |
-| TLX-S006 | GitHub token | 🔴 critical |
-| TLX-S007 | Google API key | 🔴 critical |
-| TLX-S008 | Supabase service role key | 🔴 critical |
-| TLX-S009 | Database password inside a connection URL | 🔴 critical |
-| TLX-S010 | Hardcoded JWT / session signing secret | 🔴 critical |
-| TLX-S011 | `.env` file committed to git | 🔴 critical |
-| TLX-S012 | Private key material (`.pem`/`.key`, `BEGIN PRIVATE KEY`) in the repo | 🔴 critical |
+| TLX-S001 | High-entropy value assigned to a secret-named variable | Critical |
+| TLX-S002 | AWS access key or secret key | Critical |
+| TLX-S003 | Stripe live key | Critical |
+| TLX-S004 | OpenAI API key | Critical |
+| TLX-S005 | Anthropic API key | Critical |
+| TLX-S006 | GitHub token | Critical |
+| TLX-S007 | Google API key | Critical |
+| TLX-S008 | Supabase service role key | Critical |
+| TLX-S009 | Database password embedded in a connection URL | Critical |
+| TLX-S010 | Hardcoded JWT or session signing secret | Critical |
+| TLX-S011 | `.env` file tracked by git | Critical |
+| TLX-S012 | Private key material in the repository | Critical |
 
 ### FastAPI
 
-| ID | Finds | Severity |
+| ID | Detects | Severity |
 |---|---|---|
-| TLX-F001 | POST/PUT/PATCH/DELETE route with no auth dependency | 🔴 critical |
-| TLX-F002 | `admin` route with no auth dependency | 🔴 critical |
-| TLX-F003 | CORS `allow_origins=["*"]` **with** `allow_credentials=True` | 🔴 critical |
-| TLX-F004 | CORS `allow_origins=["*"]` | 🟡 warning |
-| TLX-F005 | `debug=True` in app configuration | 🟡 warning |
-| TLX-F006 | API docs left enabled in a deployable project | 🔵 info |
-| TLX-F007 | Response model exposing password/secret/token fields | 🟡 warning |
-| TLX-F008 | Login routes with no rate limiting anywhere | 🟡 warning |
+| TLX-F001 | State-changing route (POST/PUT/PATCH/DELETE) without an auth dependency | Critical |
+| TLX-F002 | Admin route without an auth dependency | Critical |
+| TLX-F003 | CORS wildcard origin combined with credentials | Critical |
+| TLX-F004 | CORS wildcard origin | Warning |
+| TLX-F005 | Debug mode enabled | Warning |
+| TLX-F006 | API documentation enabled in a deployable project | Info |
+| TLX-F007 | Response model exposing password, secret, or token fields | Warning |
+| TLX-F008 | Login routes without rate limiting | Warning |
 
 ### Code patterns
 
-| ID | Finds | Severity |
+| ID | Detects | Severity |
 |---|---|---|
-| TLX-C001 | SQL built with f-strings/concatenation passed to `execute()`/`text()` | 🔴 critical |
-| TLX-C002 | `eval()`/`exec()` on non-literal input | 🔴 critical |
-| TLX-C003 | `pickle.load(s)` on untrusted data | 🟡 warning |
-| TLX-C004 | `subprocess` with `shell=True` and a dynamic command | 🔴 critical |
-| TLX-C005 | MD5/SHA1 in a password context | 🟡 warning |
-| TLX-C006 | `random` module used for tokens (use `secrets`) | 🟡 warning |
-| TLX-C007 | `requests`/`httpx` with `verify=False` | 🟡 warning |
+| TLX-C001 | SQL built with f-strings or concatenation passed to `execute()` / `text()` | Critical |
+| TLX-C002 | `eval()` or `exec()` on non-literal input | Critical |
+| TLX-C003 | `pickle` deserialization of untrusted data | Warning |
+| TLX-C004 | `subprocess` with `shell=True` and a dynamic command | Critical |
+| TLX-C005 | MD5 or SHA1 in a password context | Warning |
+| TLX-C006 | `random` module used for tokens instead of `secrets` | Warning |
+| TLX-C007 | TLS verification disabled (`verify=False`) | Warning |
 
-### Config & infrastructure
+### Configuration and infrastructure
 
-| ID | Finds | Severity |
+| ID | Detects | Severity |
 |---|---|---|
-| TLX-I001 | Dockerfile runs as root | 🟡 warning |
-| TLX-I002 | Server binds `0.0.0.0` with no auth anywhere | 🔵 info |
-| TLX-I003 | Source maps committed in build output | 🟡 warning |
+| TLX-I001 | Dockerfile running as root | Warning |
+| TLX-I002 | Server bound to `0.0.0.0` with no authentication anywhere | Info |
+| TLX-I003 | Source maps committed in build output | Warning |
 
 ### Dependencies
 
-| ID | Finds | Severity |
+| ID | Detects | Severity |
 |---|---|---|
-| TLX-D001 | Known CVEs via [pip-audit](https://github.com/pypa/pip-audit) (`pip install 'torlyx[audit]'`) | mapped from CVSS |
+| TLX-D001 | Known CVEs, via [pip-audit](https://github.com/pypa/pip-audit) | Mapped from CVSS |
 
-False positives are treated as bugs: test/fixture directories are skipped for
-secrets, placeholders (`your-api-key-here`, `changeme`) are recognized, login
-and webhook routes are exempt from the auth rule, and `# torlyx:ignore`
-silences any line.
+### False-positive policy
 
-## Use it in CI
+False positives are treated as bugs. Test and fixture directories are skipped
+by the secrets rules, common placeholder values are recognized, and login,
+signup, and webhook routes are exempt from the authentication rule. Any
+individual line can be suppressed with a trailing comment:
+
+```python
+STRIPE_TEST_KEY = "sk_test_example"  # torlyx:ignore
+```
+
+## Continuous integration
+
+Add a workflow such as `.github/workflows/security.yml`:
 
 ```yaml
-# .github/workflows/security.yml
 name: security
 on: [push, pull_request]
 jobs:
@@ -163,26 +192,28 @@ jobs:
 custom rules · v0.3: Laravel + Inertia support (`composer require
 torlyx/laravel` → `php artisan torlyx:scan`)**
 
-The core (`Finding`, scoring, report) is already language-agnostic — new
-stacks plug in as parser backends via tree-sitter, shipped through npm and
-Composer wrappers around a compiled binary.
+The core — findings, scoring, and reporting — is language-agnostic. New
+stacks plug in as parser backends via tree-sitter, distributed through npm
+and Composer wrappers around a compiled binary.
 
 ## Contributing
 
 ```bash
-git clone https://github.com/khadikul/torlyx-cli && cd torlyx-cli
+git clone https://github.com/khadikul/torlyx-cli
+cd torlyx-cli
 pip install -e ".[dev]"
 pytest
 ```
 
-Every check module implements `run(context) -> list[Finding]` and registers
-itself automatically — adding a rule never touches the orchestrator. Try your
-changes against `tests/fixtures/vulnerable_app/` (triggers every rule) and
-`tests/fixtures/clean_app/` (must stay spotless).
+Every check module implements `run(context) -> list[Finding]` and is
+registered automatically; adding a rule never requires changes to the
+orchestrator. Validate changes against the two fixture applications:
+`tests/fixtures/vulnerable_app` must trigger every rule, and
+`tests/fixtures/clean_app` must produce zero findings.
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+Released under the [MIT License](LICENSE).
 
 ---
 
