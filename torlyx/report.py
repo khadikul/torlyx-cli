@@ -14,7 +14,7 @@ from rich.text import Text
 import torlyx
 from torlyx.models import Finding, ScanResult, Severity
 
-DOCS_URL = "https://github.com/khadikul/torlyx"
+DOCS_URL = "https://github.com/khadikul/torlyx-cli"
 
 #: Score deductions per finding severity.
 _PENALTY = {Severity.CRITICAL: 20, Severity.WARNING: 5, Severity.INFO: 1}
