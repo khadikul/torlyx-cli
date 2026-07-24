@@ -170,7 +170,7 @@ Composer wrappers around a compiled binary.
 ## Contributing
 
 ```bash
-git clone https://github.com/khadikul/torlyx && cd torlyx
+git clone https://github.com/khadikul/torlyx-cli && cd torlyx-cli
 pip install -e ".[dev]"
 pytest
 ```
