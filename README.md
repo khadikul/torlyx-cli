@@ -76,6 +76,7 @@ plain-English explanation of the risk and a concrete fix:
 | `--fail-on <critical\|warning\|any>` | Exit with code 1 when findings at or above the threshold exist. Intended for CI. |
 | `--exclude <pattern>` | Exclude files matching a glob pattern. Repeatable. |
 | `--no-audit` | Skip the dependency CVE audit — the only check that uses the network. |
+| `--export md` | Also write `torlyx-report.md` — an AI-ready report: paste it into Cursor, Claude Code, or Copilot and ask it to fix each finding. |
 | `--verbose` | Report files skipped due to syntax errors. |
 
 ### Exit codes

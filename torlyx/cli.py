@@ -38,6 +38,12 @@ class FailOn(str, enum.Enum):
     any = "any"
 
 
+class ExportFormat(str, enum.Enum):
+    """File formats for --export."""
+
+    md = "md"
+
+
 def _threshold_met(result, fail_on: FailOn) -> bool:
     if fail_on is FailOn.critical:
         return result.criticals > 0
@@ -69,6 +75,12 @@ def scan(
         "--no-audit",
         help="Skip the dependency CVE audit — the only check that uses the network.",
     ),
+    export: ExportFormat | None = typer.Option(
+        None,
+        "--export",
+        help="Also write torlyx-report.md — an AI-ready report you can paste "
+        "into Cursor/Claude/Copilot to fix each finding.",
+    ),
     verbose: bool = typer.Option(
         False, "--verbose", "-v", help="Show skipped files and extra notes."
     ),
@@ -86,6 +98,14 @@ def scan(
         typer.echo(report.to_json(result))
     else:
         report.render(result, _console)
+
+    if export is ExportFormat.md:
+        out = Path.cwd() / "torlyx-report.md"
+        out.write_text(report.to_markdown(result), encoding="utf-8", newline="\n")
+        _err_console.print(
+            f"[green]Report written to[/green] {out} — paste it into your AI "
+            "assistant to fix each finding."
+        )
 
     if fail_on is not None and _threshold_met(result, fail_on):
         raise typer.Exit(code=1)
