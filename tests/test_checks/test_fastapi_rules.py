@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+import sys
+
+import pytest
+
 from torlyx.checks import fastapi_rules
 
 
@@ -153,6 +157,10 @@ def test_annotated_alias_from_another_file_protects_route(make_ctx):
     assert fastapi_rules.run(ctx) == []
 
 
+@pytest.mark.skipif(
+    sys.version_info < (3, 12),
+    reason="PEP 695 `type X = ...` fixtures only parse on Python 3.12+",
+)
 def test_pep695_type_alias_protects_route(make_ctx):
     ctx = make_ctx(
         {

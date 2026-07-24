@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "torlyx"
-version = "0.1.0"
+version = "0.1.1"
 description = "Zero-config security scanner for AI-generated (vibe-coded) web apps. Scan your app before you ship it."
 readme = "README.md"
 license = { file = "LICENSE" }

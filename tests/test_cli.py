@@ -33,6 +33,21 @@ def test_version_command():
     assert f"torlyx {torlyx.__version__}" in result.output
 
 
+def test_python_m_torlyx_works():
+    """`python -m torlyx` is the fallback when Scripts isn't on PATH."""
+    import subprocess
+    import sys
+
+    proc = subprocess.run(
+        [sys.executable, "-m", "torlyx", "version"],
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert proc.returncode == 0
+    assert f"torlyx {torlyx.__version__}" in proc.stdout
+
+
 def test_rules_command_lists_all_30():
     result = runner.invoke(app, ["rules"])
     assert result.exit_code == 0
