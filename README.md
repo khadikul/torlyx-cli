@@ -13,7 +13,7 @@ entirely on your machine.
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue)](https://pypi.org/project/torlyx/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-![Torlyx CLI demo](docs/demo.gif)
+![Torlyx CLI demo](https://raw.githubusercontent.com/khadikul/torlyx-cli/main/docs/demo.gif)
 
 </div>
 
@@ -214,7 +214,7 @@ orchestrator. Validate changes against the two fixture applications:
 
 ## License
 
-Released under the [MIT License](LICENSE).
+Released under the [MIT License](https://github.com/khadikul/torlyx-cli/blob/main/LICENSE).
 
 ---
 
